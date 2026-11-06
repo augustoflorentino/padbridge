@@ -1,0 +1,28 @@
+profile ninja-sword
+name Gamer Ninja Sword (Home+X, Bluetooth)
+output xbox360 0x045e 0x028e
+output-name Microsoft X-Box 360 pad
+report 1 10
+button a 1.3 invert
+button b 1.2 invert
+button x 1.1 invert
+button y 1.0 invert
+button rb 1.6 invert
+button back 2.0 invert
+button start 2.1 invert
+button rstick 2.2 invert
+button lstick 2.3 invert
+button dpad_down 3.0 invert
+button dpad_up 3.1 invert
+button dpad_right 3.2 invert
+button dpad_left 3.3 invert
+button lb 3.6 invert
+axis lx 4.0 8
+axis ly 5.0 8
+axis rx 6.0 8
+axis ry 7.0 8
+axis lt 8.0 8
+axis rt 9.0 8
+rumble 01 00 00 00 00 00 00 00 00
+motor strong 2.0 8
+motor weak 1.0 8
