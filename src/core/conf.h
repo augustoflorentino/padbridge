@@ -6,6 +6,7 @@
 typedef struct pb_conf {
     char profiles_dir[512];
     char state_path[512];
+    char pid_path[512];
     char hook[512];
     int reconnect_s;
     int log_level;
@@ -18,6 +19,9 @@ int pb_profile_match(const pb_conf_t *conf, uint16_t vendor, uint16_t product, c
                      const char *address, pb_profile_t **out);
 int pb_profile_each(const pb_conf_t *conf, int (*fn)(void *ctx, const pb_profile_t *profile, const char *origin),
                     void *ctx);
+int pb_state_claim(const pb_conf_t *conf, long *out_owner);
+void pb_state_release(const pb_conf_t *conf);
+long pb_state_owner(const pb_conf_t *conf);
 int pb_state_write(const pb_conf_t *conf, const char *controller, const char *status, const char *detail);
 
 #endif

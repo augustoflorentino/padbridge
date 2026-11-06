@@ -11,7 +11,14 @@ foreach(lib bitspan hid-parser wirefile padff cmdspawn vpad report-guess)
 endforeach()
 
 file(GLOB PB_SOURCES CONFIGURE_DEPENDS src/*/*.c)
-add_executable(padbridge ${PB_SOURCES})
+file(GLOB PB_PROFILES CONFIGURE_DEPENDS profiles/*)
+set(PB_BUILTIN_C "${CMAKE_CURRENT_BINARY_DIR}/builtin_profiles.c")
+add_custom_command(OUTPUT "${PB_BUILTIN_C}"
+    COMMAND ${CMAKE_COMMAND} -DPROFILES_DIR=${CMAKE_CURRENT_SOURCE_DIR}/profiles
+        -DOUTPUT=${PB_BUILTIN_C} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+    DEPENDS ${PB_PROFILES} cmake/embed.cmake)
+add_executable(padbridge ${PB_SOURCES} "${PB_BUILTIN_C}")
+target_include_directories(padbridge PRIVATE src)
 target_compile_definitions(padbridge PRIVATE PB_VERSION="${PROJECT_VERSION}")
 target_link_libraries(padbridge PRIVATE hid-parser::hid-parser wirefile::wirefile padff::padff cmdspawn::cmdspawn
     vpad::vpad report-guess::report-guess bitspan::bitspan)
