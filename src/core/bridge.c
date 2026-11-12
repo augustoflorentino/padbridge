@@ -225,9 +225,11 @@ static int pb_link_session(pb_link_t *link, pb_source_t *src)
 
 static int pb_open_fatal(const pb_link_t *link, int r)
 {
-    if (r == PB_ERR_ARG || r == PB_ERR_UNSUPPORTED || r == PB_ERR_ACCESS || r == PB_ERR_NOMEM)
+    if (r == PB_ERR_ARG || r == PB_ERR_UNSUPPORTED || r == PB_ERR_NOMEM)
         return 1;
-    return r == PB_ERR_NOT_FOUND && strncmp(link->uri, "bt:", 3) != 0;
+    if (strncmp(link->uri, "bt:", 3) == 0)
+        return 0;
+    return r == PB_ERR_NOT_FOUND || r == PB_ERR_ACCESS;
 }
 
 static int pb_worker_main(void *arg)
