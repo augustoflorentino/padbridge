@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# PROVIDE: padbridge
+# REQUIRE: DAEMON bluetooth
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name=padbridge
+rcvar=padbridge_enable
+
+load_rc_config $name
+
+: ${padbridge_enable:=NO}
+: ${padbridge_user:=root}
+: ${padbridge_args:=run}
+
+pidfile=/var/run/${name}.pid
+procname=/usr/local/bin/padbridge
+command=/usr/sbin/daemon
+command_args="-r -S -T ${name} -P ${pidfile} -u ${padbridge_user} ${procname} ${padbridge_args}"
+
+run_rc_command "$1"

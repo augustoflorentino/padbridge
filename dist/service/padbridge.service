@@ -1,0 +1,11 @@
+[Unit]
+Description=padbridge controller bridge
+After=bluetooth.target
+
+[Service]
+ExecStart=padbridge run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
