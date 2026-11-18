@@ -23,3 +23,13 @@ set_tests_properties(core.capture PROPERTIES FIXTURES_SETUP ninja_capture)
 add_test(NAME core.monitor_replay COMMAND padbridge monitor --profile ninja-sword replay:${PB_CAPTURE})
 set_tests_properties(core.monitor_replay PROPERTIES FIXTURES_REQUIRED ninja_capture ENVIRONMENT "${PB_ENV}"
     PASS_REGULAR_EXPRESSION "buttons=a .*buttons=left .*lx=-32768.*rt=255")
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(ffplay ffplay.c)
+    add_executable(outpackets outpackets.c)
+    target_link_libraries(outpackets PRIVATE wirefile::wirefile)
+    add_test(NAME core.rumble_uinput COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/rumble.sh
+        $<TARGET_FILE:padbridge> ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(core.rumble_uinput PROPERTIES ENVIRONMENT "${PB_ENV}" SKIP_RETURN_CODE 77
+        PASS_REGULAR_EXPRESSION "01 40 80 00 00 00 00 00 00\n01 00 00 00 00 00 00 00 00")
+endif()
