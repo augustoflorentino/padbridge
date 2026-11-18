@@ -12,3 +12,14 @@ add_test(NAME core.bad_config COMMAND padbridge run --config ${CMAKE_CURRENT_SOU
 set_tests_properties(core.bad_config PROPERTIES PASS_REGULAR_EXPRESSION "bad setting")
 add_test(NAME core.version COMMAND padbridge --version)
 set_tests_properties(core.version PROPERTIES PASS_REGULAR_EXPRESSION "padbridge [0-9]")
+
+set(PB_SRC "${PROJECT_SOURCE_DIR}/src")
+add_executable(mkcapture mkcapture.c "${PB_SRC}/record/record.c" "${PB_SRC}/core/pb.c" "${PB_SRC}/core/out.c")
+target_include_directories(mkcapture PRIVATE "${PB_SRC}")
+target_link_libraries(mkcapture PRIVATE wirefile::wirefile vpad::vpad)
+set(PB_CAPTURE "${CMAKE_CURRENT_BINARY_DIR}/ninja.pcapng")
+add_test(NAME core.capture COMMAND mkcapture ${PB_CAPTURE})
+set_tests_properties(core.capture PROPERTIES FIXTURES_SETUP ninja_capture)
+add_test(NAME core.monitor_replay COMMAND padbridge monitor --profile ninja-sword replay:${PB_CAPTURE})
+set_tests_properties(core.monitor_replay PROPERTIES FIXTURES_REQUIRED ninja_capture ENVIRONMENT "${PB_ENV}"
+    PASS_REGULAR_EXPRESSION "buttons=a .*buttons=left .*lx=-32768.*rt=255")
