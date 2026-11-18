@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +33,8 @@ typedef struct pb_link {
     pb_mutex_t *source_lock;
     pb_thread_t *worker;
     pb_thread_t *ff_thread;
-    volatile int done;
+    atomic_int done;
+    atomic_int resend;
     int fatal;
     int status;
 } pb_link_t;
@@ -122,32 +124,58 @@ static void pb_link_rumble(pb_link_t *link, const uint16_t *motors, unsigned cou
     pb_mutex_unlock(link->source_lock);
 }
 
+static void pb_ff_drain(pb_link_t *link, uint32_t wait)
+{
+    vpad_event_t ev;
+    int r = pb_sink_next_ff(link->sink, &ev, (int)wait);
+
+    while (r == PB_OK) {
+        pb_ff_event(link->ff, &ev, pb_now_ms());
+        r = pb_sink_next_ff(link->sink, &ev, 0);
+    }
+    if (r != PB_ERR_TIMEOUT)
+        pb_sleep_ms(PB_FF_IDLE_MS);
+}
+
 static int pb_ff_main(void *arg)
 {
     pb_link_t *link = arg;
     unsigned count = pb_profile_meta(link->profile)->motors;
-    uint16_t motors[PB_MOTOR_COUNT];
+    uint16_t motors[PB_MOTOR_COUNT] = {0, 0, 0, 0};
     uint32_t wait = PB_FF_IDLE_MS;
-    vpad_event_t ev;
     int changed;
-    int r;
 
     if (count > PB_MOTOR_COUNT)
         count = PB_MOTOR_COUNT;
-    while (!link->done) {
-        r = pb_sink_next_ff(link->sink, &ev, (int)wait);
-        if (r == PB_OK)
-            pb_ff_event(link->ff, &ev, pb_now_ms());
-        else if (r != PB_ERR_TIMEOUT)
-            pb_sleep_ms(PB_FF_IDLE_MS);
+    while (!atomic_load(&link->done)) {
+        pb_ff_drain(link, wait);
         changed = 0;
         if (pb_ff_poll(link->ff, pb_now_ms(), motors, count, &changed, &wait) != PB_OK
             || wait > PB_FF_IDLE_MS)
             wait = PB_FF_IDLE_MS;
+        if (atomic_exchange(&link->resend, 0))
+            changed = 1;
         if (changed)
             pb_link_rumble(link, motors, count);
     }
     return PB_OK;
+}
+
+static void pb_link_silence(pb_link_t *link, pb_source_t *src)
+{
+    static const uint16_t zero[PB_MOTOR_COUNT] = {0, 0, 0, 0};
+    unsigned char buf[PB_REPORT_MAX];
+    unsigned count;
+    size_t len;
+
+    if (link->ff == NULL)
+        return;
+    count = pb_profile_meta(link->profile)->motors;
+    if (count > PB_MOTOR_COUNT)
+        count = PB_MOTOR_COUNT;
+    if (pb_profile_rumble(link->profile, zero, count, buf, sizeof(buf), &len) == PB_OK
+        && pb_source_write(src, buf, len) == PB_OK)
+        pb_link_record(link, PB_DIR_OUT, buf, len);
 }
 
 static int pb_link_attach(pb_link_t *link, pb_source_t *src)
@@ -211,9 +239,12 @@ static int pb_link_session(pb_link_t *link, pb_source_t *src)
     pb_mutex_lock(link->source_lock);
     link->source = src;
     pb_mutex_unlock(link->source_lock);
+    atomic_store(&link->resend, 1);
     pb_link_event(link, "connected", pb_profile_meta(link->profile)->id);
     r = pb_link_pump(link, src);
     pb_mutex_lock(link->source_lock);
+    if (r == PB_OK)
+        pb_link_silence(link, src);
     link->source = NULL;
     pb_mutex_unlock(link->source_lock);
     pb_source_close(src);
@@ -237,11 +268,13 @@ static int pb_worker_main(void *arg)
     pb_link_t *link = arg;
     const pb_bridge_options_t *o = link->shared->options;
     pb_source_t *src;
+    int connected;
     int r;
 
     while (!pb_interrupted()) {
         r = pb_link_open_source(link, &src);
-        if (r == PB_OK)
+        connected = r == PB_OK;
+        if (connected)
             r = pb_link_session(link, src);
         else if (pb_open_fatal(link, r)) {
             pb_log(PB_LOG_ERROR, "%s: %s", link->uri, pb_strerror(r));
@@ -251,11 +284,12 @@ static int pb_worker_main(void *arg)
             link->status = r;
             break;
         }
-        if (r != PB_OK)
-            pb_link_event(link, "waiting", pb_strerror(r));
+        if (connected)
+            continue;
+        pb_link_event(link, "waiting", pb_strerror(r));
         pb_link_wait(o->conf->reconnect_s);
     }
-    link->done = 1;
+    atomic_store(&link->done, 1);
     if (link->sink != NULL)
         pb_sink_wake(link->sink);
     return PB_OK;
@@ -438,7 +472,7 @@ static int pb_link_finish(pb_link_t *link)
 {
     if (link->worker != NULL)
         pb_thread_join(link->worker);
-    link->done = 1;
+    atomic_store(&link->done, 1);
     if (link->ff_thread != NULL) {
         pb_sink_wake(link->sink);
         pb_thread_join(link->ff_thread);
