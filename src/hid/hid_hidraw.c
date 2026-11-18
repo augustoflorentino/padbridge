@@ -11,6 +11,7 @@
 #ifdef __linux__
 #include <linux/hidraw.h>
 #else
+#include <stdint.h>
 #include <dev/hid/hidraw.h>
 #endif
 #include "../core/out.h"
