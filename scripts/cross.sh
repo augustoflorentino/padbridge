@@ -2,6 +2,8 @@
 set -uo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+src_dir=$(cd "${PADBRIDGE_SRC:-$root}" && pwd)
+app=app-$(basename "$src_dir")
 libs=(bitspan@v3.1.0 hid-parser@v3.4.0 wirefile@v2.2.0 padff@v3.6.0 cmdspawn@v3.5.0 vpad@v3.3.0 report-guess@v4.0.0)
 targets=("$@")
 [ ${#targets[@]} -eq 0 ] && targets=(x86_64-windows-gnu x86-linux-musl x86_64-freebsd)
@@ -54,18 +56,18 @@ build_lib() {
 
 build_app() {
     local work=$1 prefix=$2 tc=$3 log=$4
-    cmake -S "$root" -B "$work/padbridge" -DCMAKE_TOOLCHAIN_FILE="$tc" -DCMAKE_BUILD_TYPE=Release \
+    cmake -S "$src_dir" -B "$work/$app" -DCMAKE_TOOLCHAIN_FILE="$tc" -DCMAKE_BUILD_TYPE=Release \
         -DPADBRIDGE_BUILD_TESTS=ON -DCMAKE_FIND_ROOT_PATH="$prefix" -DCMAKE_PREFIX_PATH="$prefix" \
         -DCMAKE_CROSSCOMPILING_EMULATOR="$5" >>"$log" 2>&1 &&
-        cmake --build "$work/padbridge" -j >>"$log" 2>&1
+        cmake --build "$work/$app" -j >>"$log" 2>&1
 }
 
 run_wine() {
     local work=$1 log=$2
-    local exe=$work/padbridge/padbridge.exe
+    local exe=$work/$app/padbridge.exe
     export WINEDEBUG=-all WINEPREFIX=$root/deps/cross/wine
     wine "$exe" --help >>"$log" 2>&1 && wine "$exe" backends >>"$log" 2>&1 &&
-        (cd "$work/padbridge" && ctest --output-on-failure >>"$log" 2>&1)
+        (cd "$work/$app" && ctest --output-on-failure >>"$log" 2>&1)
 }
 
 for target in "${targets[@]}"; do
@@ -92,6 +94,6 @@ for target in "${targets[@]}"; do
         status=wine
     fi
     [ "$status" = ok ] || failed=1
-    echo "$target: $status (log $log)"
+    echo "$target: $status (build $work/$app, log $log)"
 done
 exit $failed
