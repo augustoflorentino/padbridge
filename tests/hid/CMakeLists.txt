@@ -17,6 +17,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_test(NAME hid.replay COMMAND test_hid replay ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME hid.rebuild COMMAND test_hid rebuild)
 add_test(NAME hid.uhid COMMAND test_hid uhid)
 set_tests_properties(hid.uhid PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME hid.list COMMAND padbridge list)

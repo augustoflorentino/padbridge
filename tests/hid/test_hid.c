@@ -9,6 +9,8 @@
 #include "core/sys.h"
 #include "record/record.h"
 #include "hid_internal.h"
+#include "hid_rebuild.h"
+#include <hid-parser/hid-parser.h>
 
 #define CHECK(cond) do { if (!(cond)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #cond); exit(1); } } while (0)
 
@@ -82,6 +84,60 @@ static void test_replay(const char *dir)
     CHECK(pb_replay_open(junk, &src) == PB_ERR_FORMAT);
     CHECK(pb_hid_numbered(numbered_desc, sizeof(numbered_desc)) == 1);
     CHECK(pb_hid_numbered(plain_desc, sizeof(plain_desc)) == 0);
+}
+
+static const hidp_field_t *find_field(const hidp_desc_t *desc, unsigned type, unsigned id, size_t offset)
+{
+    size_t i;
+
+    for (i = 0; i < hidp_desc_field_count(desc); i++) {
+        const hidp_field_t *f = hidp_desc_field(desc, i);
+
+        if (f->report_type == type && f->report_id == id && f->bit_offset == offset)
+            return f;
+    }
+    return NULL;
+}
+
+static void check_rebuilt(const hidp_desc_t *desc)
+{
+    const hidp_field_t *f;
+
+    CHECK((f = find_field(desc, HIDP_INPUT, 1, 8)) != NULL && f->report_size == 1 && f->report_count == 8);
+    CHECK(f->usage_page == 9 && f->usages_len == 1 && f->usages[0].min == 0x90001u && f->usages[0].max == 0x90008u);
+    CHECK((f = find_field(desc, HIDP_INPUT, 1, 16)) != NULL && f->report_size == 4 && f->logical_max == 7);
+    CHECK((f->flags & HIDP_FLAG_NULL_STATE) && f->physical_max == 315 && f->unit == 0x14);
+    CHECK(hidp_desc_collection(desc, f->collection)->usage == 0x00010001u);
+    CHECK((f = find_field(desc, HIDP_INPUT, 1, 20)) != NULL && (f->flags & HIDP_FLAG_CONSTANT) && f->report_size == 4);
+    CHECK((f = find_field(desc, HIDP_INPUT, 1, 24)) != NULL && f->report_size == 8 && f->report_count == 2);
+    CHECK(f->logical_min == 0 && f->logical_max == 255 && f->usages[0].min == 0x10030u && f->usages[0].max == 0x10031u);
+    CHECK((f = find_field(desc, HIDP_OUTPUT, 2, 8)) != NULL && f->usage_page == 0x0f && f->report_count == 2);
+    CHECK(hidp_desc_find_report(desc, HIDP_INPUT, 1)->byte_len == 5);
+    CHECK(hidp_desc_find_report(desc, HIDP_OUTPUT, 2)->byte_len == 3);
+    CHECK(hidp_desc_collection(desc, 0)->usage == 0x00010005u);
+}
+
+static void test_rebuild(void)
+{
+    static const pb_rebuild_collection_t collections[] = {{1, 5, 1, 0}, {1, 1, 0, 0}};
+    pb_rebuild_field_t fields[] = {
+        {HIDP_MAIN_INPUT, 1, 1, 16, 8, 2, 0x02, 1, 0x30, 0x31, 1, 0, -1, 0, 0, 0, 0},
+        {HIDP_MAIN_OUTPUT, 2, 0, 8, 8, 1, 0x02, 0x0f, 0x97, 0x97, 0, 0, 255, 0, 0, 0, 0},
+        {HIDP_MAIN_OUTPUT, 2, 0, 0, 8, 1, 0x02, 0x0f, 0x97, 0x97, 0, 0, 255, 0, 0, 0, 0},
+        {HIDP_MAIN_INPUT, 1, 0, 0, 1, 8, 0x02, 9, 1, 8, 1, 0, 1, 0, 0, 0, 0},
+        {HIDP_MAIN_INPUT, 1, 1, 8, 4, 1, 0x42, 1, 0x39, 0x39, 0, 0, 7, 0, 315, 0x14, 0},
+        {HIDP_MAIN_INPUT, 1, 0, 0, 1, 8, 0x02, 9, 1, 8, 1, 0, 1, 0, 0, 0, 0},
+    };
+    unsigned char out[512];
+    size_t len;
+    size_t error_offset;
+    hidp_desc_t *desc;
+
+    CHECK(pb_rebuild_descriptor(collections, 2, fields, 6, out, sizeof(out), &len) == PB_OK);
+    CHECK(hidp_desc_parse(out, len, NULL, &desc, &error_offset) == HIDP_OK);
+    check_rebuilt(desc);
+    hidp_desc_destroy(desc);
+    CHECK(pb_rebuild_descriptor(collections, 2, fields, 6, out, 8, &len) == PB_ERR_FORMAT && len == 0);
 }
 
 #ifdef __linux__
@@ -255,6 +311,10 @@ int main(int argc, char **argv)
     pb_out_init(0, PB_LOG_ERROR - 1);
     if (argc == 3 && strcmp(argv[1], "replay") == 0) {
         test_replay(argv[2]);
+        return 0;
+    }
+    if (argc == 2 && strcmp(argv[1], "rebuild") == 0) {
+        test_rebuild();
         return 0;
     }
     if (argc == 2 && strcmp(argv[1], "uhid") == 0)
