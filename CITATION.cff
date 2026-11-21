@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If padbridge helped your research or project, you can cite it like this."
+type: software
+title: padbridge
+abstract: "Turns gamepads that games do not recognize, over Bluetooth or USB, into a standard virtual controller, rumble included"
+authors:
+  - family-names: Florentino
+    given-names: Augusto
+license: MIT
+repository-code: "https://github.com/augustoflorentino/padbridge"
+keywords:
+  - gamepad
+  - controller
+  - hid
+  - bluetooth
+  - uinput
+  - force-feedback
+  - c
