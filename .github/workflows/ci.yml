@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - run: sudo apt-get update && sudo apt-get install -y libsystemd-dev
+      - run: scripts/deps.sh
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DPADBRIDGE_BUILD_TESTS=ON -DCMAKE_C_FLAGS="-Werror"
+      - run: cmake --build build -j
+      - run: ctest --test-dir build --output-on-failure
+
+  cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2.1.0
+      - run: scripts/cross.sh x86-linux-musl x86_64-freebsd
