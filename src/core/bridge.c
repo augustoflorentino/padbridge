@@ -60,11 +60,13 @@ static void pb_link_event(pb_link_t *link, const char *status, const char *detai
         pb_log(PB_LOG_WARN, "%s: hook failed", link->uri);
 }
 
-static int pb_link_open_source(pb_link_t *link, pb_source_t **out)
+static int pb_link_open_source(pb_link_t *link, int after_drop, pb_source_t **out)
 {
-    if (strncmp(link->uri, "bt:", 3) == 0)
-        return pb_bt_connect(link->uri + 3, 1, out);
-    return pb_source_open(link->uri, out);
+    if (strncmp(link->uri, "bt:", 3) != 0)
+        return pb_source_open(link->uri, out);
+    if (after_drop && pb_bt_connect(link->uri + 3, 0, out) == PB_OK)
+        return PB_OK;
+    return pb_bt_connect(link->uri + 3, 1, out);
 }
 
 static int pb_link_profile(pb_link_t *link, pb_source_t *src)
@@ -268,11 +270,11 @@ static int pb_worker_main(void *arg)
     pb_link_t *link = arg;
     const pb_bridge_options_t *o = link->shared->options;
     pb_source_t *src;
-    int connected;
+    int connected = 0;
     int r;
 
     while (!pb_interrupted()) {
-        r = pb_link_open_source(link, &src);
+        r = pb_link_open_source(link, connected, &src);
         connected = r == PB_OK;
         if (connected)
             r = pb_link_session(link, src);
