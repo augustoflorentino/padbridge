@@ -3,7 +3,7 @@ set -uo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 src_dir=$(cd "${PADBRIDGE_SRC:-$root}" && pwd)
-app=app-$(basename "$src_dir")
+app=app-$(basename "$src_dir")-$(printf %s "$src_dir" | cksum | cut -d" " -f1)
 libs=(bitspan@v3.1.0 hid-parser@v3.4.0 wirefile@v2.2.0 padff@v3.6.0 cmdspawn@v3.5.0 vpad@v3.3.0 report-guess@v4.0.0)
 targets=("$@")
 [ ${#targets[@]} -eq 0 ] && targets=(x86_64-windows-gnu x86-linux-musl x86_64-freebsd)
