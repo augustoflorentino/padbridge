@@ -8,6 +8,7 @@
 #include <hidsdi.h>
 #include "../core/out.h"
 #include "hid_internal.h"
+#include "hid_rebuild.h"
 
 #define PB_WIN_WRITE_MS 1000
 #define PB_WIN_BT_GUID "{00001124-0000-1000-8000-00805f9b34fb}"
@@ -23,6 +24,8 @@ typedef struct pb_win_hid {
     size_t input_len;
     size_t output_len;
     unsigned char input[PB_REPORT_MAX + 1];
+    size_t desc_len;
+    unsigned char desc[PB_HID_DESC_MAX];
 } pb_win_hid_t;
 
 static int pb_win_error(DWORD err)
@@ -119,6 +122,19 @@ static int pb_win_write(pb_source_t *src, const unsigned char *buf, size_t len)
     return status;
 }
 
+static int pb_win_descriptor(pb_source_t *src, unsigned char *buf, size_t len, size_t *out_len)
+{
+    pb_win_hid_t *dev = (pb_win_hid_t *)src;
+
+    *out_len = dev->desc_len;
+    if (dev->desc_len == 0)
+        return PB_ERR_NOT_FOUND;
+    if (len < dev->desc_len)
+        return PB_ERR_ARG;
+    memcpy(buf, dev->desc, dev->desc_len);
+    return PB_OK;
+}
+
 static void pb_win_close(pb_source_t *src)
 {
     pb_win_hid_t *dev = (pb_win_hid_t *)src;
@@ -134,7 +150,7 @@ static void pb_win_close(pb_source_t *src)
     free(dev);
 }
 
-static const pb_source_ops_t pb_win_ops = {pb_win_read, pb_win_write, NULL, pb_win_close};
+static const pb_source_ops_t pb_win_ops = {pb_win_read, pb_win_write, pb_win_descriptor, pb_win_close};
 
 static int pb_win_caps_numbered(PHIDP_PREPARSED_DATA pp, HIDP_REPORT_TYPE type, USHORT buttons, USHORT values)
 {
@@ -173,6 +189,8 @@ static int pb_win_caps(pb_win_hid_t *dev)
     dev->output_len = caps.OutputReportByteLength;
     dev->numbered = pb_win_caps_numbered(pp, HidP_Input, caps.NumberInputButtonCaps, caps.NumberInputValueCaps)
                     || pb_win_caps_numbered(pp, HidP_Output, caps.NumberOutputButtonCaps, caps.NumberOutputValueCaps);
+    if (pb_win_rebuild(pp, dev->desc, sizeof(dev->desc), &dev->desc_len) != PB_OK)
+        pb_log(PB_LOG_INFO, "report descriptor could not be rebuilt from the preparsed data");
     HidD_FreePreparsedData(pp);
     if (dev->input_len > sizeof(dev->input) || dev->output_len > PB_REPORT_MAX + 1)
         return PB_ERR_FORMAT;
@@ -240,7 +258,6 @@ int pb_hid_open(const char *path, pb_source_t **out)
     }
     dev->base.ops = &pb_win_ops;
     pb_win_info(dev->handle, path, &dev->base.info);
-    pb_log(PB_LOG_DEBUG, "%s: hid.dll does not expose the report descriptor", path);
     *out = &dev->base;
     return PB_OK;
 }
