@@ -63,6 +63,8 @@ int pb_bt_connect(const char *address, int pair, pb_source_t **out)
 
     if (out == NULL || pb_bt_address(address, norm, raw) != PB_OK)
         return PB_ERR_ARG;
+    if (pair)
+        pb_bluez_forget(norm);
     status = pb_bt_open_live(norm, out);
     if (status == PB_OK || !pair || status == PB_ERR_UNSUPPORTED)
         return status;

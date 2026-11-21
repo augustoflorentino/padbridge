@@ -503,6 +503,21 @@ int pb_bluez_pair(const char *address)
     return status;
 }
 
+int pb_bluez_forget(const char *address)
+{
+    pb_bluez_t bz;
+    char path[96];
+    int status = pb_bluez_open(&bz, 1);
+
+    if (status != PB_OK)
+        return status;
+    pb_device_path(&bz, address, path, sizeof(path));
+    if (pb_device_exists(&bz, path))
+        status = pb_call(&bz, bz.adapter, PB_ADAPTER, "RemoveDevice", "o", path);
+    pb_bluez_close(&bz);
+    return status;
+}
+
 int pb_bluez_disconnect(const char *address)
 {
     pb_bluez_t bz;
@@ -535,6 +550,12 @@ int pb_bluez_info(const char *address, pb_bt_device_t *out)
 }
 
 int pb_bluez_pair(const char *address)
+{
+    (void)address;
+    return PB_ERR_UNSUPPORTED;
+}
+
+int pb_bluez_forget(const char *address)
 {
     (void)address;
     return PB_ERR_UNSUPPORTED;

@@ -15,6 +15,7 @@ int pb_l2cap_from_fds(int control, int interrupt, const char *address, pb_source
 int pb_bluez_scan(int seconds, pb_bt_device_fn fn, void *ctx);
 int pb_bluez_info(const char *address, pb_bt_device_t *out);
 int pb_bluez_pair(const char *address);
+int pb_bluez_forget(const char *address);
 int pb_bluez_disconnect(const char *address);
 
 #endif
