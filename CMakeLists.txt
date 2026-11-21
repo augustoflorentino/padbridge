@@ -41,6 +41,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+if(WIN32)
+    target_link_libraries(padbridge PRIVATE hid setupapi)
+elseif(APPLE)
+    target_link_libraries(padbridge PRIVATE "-framework IOKit" "-framework CoreFoundation")
+endif()
+
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(padbridge PRIVATE -Wall -Wextra -Wpedantic)
 endif()
