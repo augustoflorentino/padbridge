@@ -107,45 +107,54 @@ static void pb_profile_row(const pb_source_info_t *info, const char *name, const
     pb_profile_destroy(profile);
 }
 
-static int pb_probe_source(const char *uri, const char *name, const char *address)
+static int pb_probe_source(pb_source_t *src, const char *name, const char *address)
 {
     unsigned char buf[PB_REPORT_MAX];
-    pb_source_t *src;
     size_t len;
-    int status = pb_source_open(uri, &src);
+    int status = pb_source_read(src, buf, sizeof(buf), &len, PB_BT_FIRST_REPORT_MS);
 
-    if (status != PB_OK)
-        return pb_fail(uri, status);
-    status = pb_source_read(src, buf, sizeof(buf), &len, PB_BT_FIRST_REPORT_MS);
     if (status == PB_OK)
         pb_report_row(buf, len);
     else
-        pb_log(PB_LOG_WARN, "%s: no input report: %s", uri, pb_strerror(status));
+        pb_log(PB_LOG_WARN, "%s: no input report: %s", pb_source_info(src)->uri, pb_strerror(status));
     pb_descriptor_row(src);
     pb_profile_row(pb_source_info(src), name[0] != '\0' ? name : pb_source_info(src)->name, address);
     pb_source_close(src);
     return PB_EXIT_OK;
 }
 
+static int pb_probe_uri(const char *uri)
+{
+    pb_source_t *src;
+    int status = pb_source_open(uri, &src);
+
+    if (status != PB_OK)
+        return pb_fail(uri, status);
+    return pb_probe_source(src, "", NULL);
+}
+
 int pb_cmd_probe(int argc, char **argv)
 {
     const char *target;
     unsigned char raw[6];
-    char uri[32];
     pb_bt_device_t device;
+    pb_source_t *src;
     int status;
 
     if (argc != 2)
         return PB_EXIT_USAGE;
     target = strncmp(argv[1], "bt:", 3) == 0 ? argv[1] + 3 : argv[1];
+    memset(&device, 0, sizeof(device));
     if (pb_bt_address(target, device.address, raw) != PB_OK)
-        return pb_probe_source(argv[1], "", NULL);
-    status = pb_bt_probe(device.address, &device);
+        return pb_probe_uri(argv[1]);
+    status = pb_bt_connect(device.address, 1, &src);
     if (status != PB_OK)
         return pb_fail(device.address, status);
+    if (pb_bluez_info(device.address, &device) != PB_OK)
+        pb_bt_address(target, device.address, raw);
+    device.connected = 1;
     pb_device_row("device", &device, "yes");
-    snprintf(uri, sizeof(uri), "bt:%s", device.address);
-    return pb_probe_source(uri, device.name, device.address);
+    return pb_probe_source(src, device.name, device.address);
 }
 
 int pb_cmd_release(int argc, char **argv)

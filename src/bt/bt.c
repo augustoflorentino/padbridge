@@ -42,13 +42,13 @@ int pb_bt_probe(const char *address, pb_bt_device_t *out)
 
     if (out == NULL || pb_bt_address(address, out->address, raw) != PB_OK)
         return PB_ERR_ARG;
+    status = pb_bt_connect(out->address, 1, &src);
+    if (status != PB_OK)
+        return status;
     if (pb_bluez_info(out->address, out) != PB_OK) {
         memset(out, 0, sizeof(*out));
         pb_bt_address(address, out->address, raw);
     }
-    status = pb_bt_open_live(out->address, &src);
-    if (status != PB_OK)
-        return status;
     out->raw_hid = 1;
     out->connected = 1;
     pb_source_close(src);
